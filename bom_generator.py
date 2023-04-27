@@ -16,18 +16,10 @@ TITLES = {
     "vendor": ["Vendor", "Поставщик"],
     "file_path": ["File Path", "Путь файла"],
     "custom_mass": ["Mass", "Масса_кг"],
-    "custom_length": ["Mass", "Масса_кг"],
 }
 
 
 def main():
-    # Validate an inventor specification
-    # Analyze the raw BOM
-    # Calculate the resulting mass for all of the materials
-    # Analyze the BOM template
-    # Delete unused materials from the BOM template
-    # Fill the BOM template
-
     # Check that files are provided
     if (
         len(sys.argv) != 3
@@ -46,17 +38,21 @@ def main():
     if not os.path.exists("./" + sys.argv[2]):
         sys.exit(f"{sys.argv[2]} must be in the same folder with bom_generator.py")
 
+    # Load workbooks
+    wb_source = openpyxl.load_workbook(sys.argv[1])
+    wb_template = openpyxl.load_workbook(sys.argv[2])
+
     # Process bill of materials
-    if valid_for_materials(sys.argv[1]):
-        bill_of_materials(sys.argv[1], sys.argv[2])
+    if valid_for_materials(wb_source):
+        bill_of_materials(wb_source, wb_template)
 
     # Process bill of purchases parts
-    if valid_for_purchased(sys.argv[1]):
-        bill_of_purchased(sys.argv[1], sys.argv[2])
+    if valid_for_purchased(wb_source):
+        bill_of_purchased(wb_source, wb_template)
 
     # Process bill of md1000 parts
-    if valid_for_md1000(sys.argv[1]):
-        bill_of_md1000(sys.argv[1], sys.argv[2])
+    if valid_for_md1000(wb_source):
+        bill_of_md1000(wb_source, wb_template)
 
 
 def valid_for_materials(source):
@@ -68,8 +64,8 @@ def valid_for_materials(source):
     - material
     - mass
     """
-    wb = openpyxl.load_workbook(source)
-
+    sheet = source[source.sheetnames[0]]
+    list(sheet.rows)[1]
     raise NotImplementedError
 
 
@@ -81,7 +77,30 @@ def valid_for_purchased(source):
     - bom_structure
     - quantity
     """
-    raise NotImplementedError
+
+    # List of lists of possible names of required columns
+    required_columns = []
+
+    for title in TITLES:
+        if title in ["part_number", "bom_structure", "quantity"]:
+            required_columns.append(TITLES[title])
+
+    # Open the first sheet from the source workbook
+    sheet = source[source.sheetnames[0]]
+
+    for column in required_columns:
+        exists = False
+
+        # For each possible name for the required column
+        for column_name in column:
+            if column_name in list(sheet.rows)[1]:
+                exists = True
+
+        # If at least one required column doesn't exist
+        if not exists:
+            return False
+
+    return True
 
 
 def valid_for_md1000(source):
