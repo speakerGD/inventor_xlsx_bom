@@ -64,9 +64,15 @@ def valid_for_materials(source):
     - material
     - mass
     """
-    sheet = source[source.sheetnames[0]]
-    list(sheet.rows)[1]
-    raise NotImplementedError
+
+    # List of lists of possible names of required columns
+    required_columns = []
+
+    for title in TITLES:
+        if title in ["bom_structure", "quantity", "material", "mass"]:
+            required_columns.append(TITLES[title])
+
+    return all_required_columns(source, required_columns)
 
 
 def valid_for_purchased(source):
@@ -85,10 +91,36 @@ def valid_for_purchased(source):
         if title in ["part_number", "bom_structure", "quantity"]:
             required_columns.append(TITLES[title])
 
+    return all_required_columns(source, required_columns)
+
+
+def valid_for_md1000(source):
+    """
+    Check the inventor .xlsx specification `source` for necessary columns to derive a list of md1000 parts.
+    Columns required:
+    - part_number
+    - description
+    - quantity
+    """
+
+    # List of lists of possible names of required columns
+    required_columns = []
+
+    for title in TITLES:
+        if title in ["part_number", "description", "quantity"]:
+            required_columns.append(TITLES[title])
+
+    return all_required_columns(source, required_columns)
+
+
+def all_required_columns(source, columns):
+    """
+    Validate that all `columns` exist in the `source` xlsx file.
+    """
     # Open the first sheet from the source workbook
     sheet = source[source.sheetnames[0]]
 
-    for column in required_columns:
+    for column in columns:
         exists = False
 
         # For each possible name for the required column
@@ -101,17 +133,6 @@ def valid_for_purchased(source):
             return False
 
     return True
-
-
-def valid_for_md1000(source):
-    """
-    Check the inventor .xlsx specification `source` for necessary columns to derive a list of md1000 parts.
-    Columns required:
-    - part_number
-    - description
-    - quantity
-    """
-    raise NotImplementedError
 
 
 def bill_of_materials(source, template):
