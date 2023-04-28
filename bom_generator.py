@@ -43,118 +43,103 @@ def main():
     wb_template = openpyxl.load_workbook(sys.argv[2])
 
     # Process bill of materials
-    if valid_for_materials(wb_source):
-        bill_of_materials(wb_source, wb_template)
+    bill_of_materials(wb_source, wb_template)
 
     # Process bill of purchases parts
-    if valid_for_purchased(wb_source):
-        bill_of_purchased(wb_source, wb_template)
+    bill_of_purchased(wb_source, wb_template)
 
     # Process bill of md1000 parts
-    if valid_for_md1000(wb_source):
-        bill_of_md1000(wb_source, wb_template)
+    bill_of_md1000(wb_source, wb_template)
 
 
-def valid_for_materials(source):
+def bill_of_materials(source, template):
     """
-    Check the inventor .xlsx specification `source` for necessary columns to calculate BOM.
-    Columns required:
+    Check the inventor .xlsx specification `source` for necessary columns to calculate BOM. Columns required:
     - bom_structure
     - quantity
     - material
     - mass
+    Calculate materials from the `source` and copy data to the template.
+    Delete unused rows of materials from the template.
     """
 
-    # List of lists of possible names of required columns
-    required_columns = []
+    required_columns_ru = [
+        "Структура спецификации",
+        "КОЛ.",
+        "Материал",
+        "Масса",
+    ]
 
-    for title in TITLES:
-        if title in ["bom_structure", "quantity", "material", "mass"]:
-            required_columns.append(TITLES[title])
+    if not all_required_columns(source, required_columns_ru):
+        print("Could not issue a bill of materials.")
+        print("Source file must contain at least these columns:")
+        for column in required_columns_ru:
+            print(column)
 
-    return all_required_columns(source, required_columns)
 
-
-def valid_for_purchased(source):
+def bill_of_purchased(source, template):
     """
-    Check the inventor .xlsx specification `source` for necessary columns to derive a list of purchased parts.
-    Columns required:
+    Check the inventor .xlsx specification `source` for necessary columns to derive a list of purchased parts. Columns required:
     - part_number
     - bom_structure
     - quantity
+    Copy purchased parts from the `source` to the template.
     """
 
-    # List of lists of possible names of required columns
-    required_columns = []
+    required_columns_ru = [
+        "Обозначение",
+        "Структура спецификации",
+        "КОЛ.",
+    ]
 
-    for title in TITLES:
-        if title in ["part_number", "bom_structure", "quantity"]:
-            required_columns.append(TITLES[title])
+    if not all_required_columns(source, required_columns_ru):
+        print("Could not issue a bill of purchased parts.")
+        print("Source file must contain at least these columns:")
+        for column in required_columns_ru:
+            print(column)
 
-    return all_required_columns(source, required_columns)
 
-
-def valid_for_md1000(source):
+def bill_of_md1000(source, template):
     """
-    Check the inventor .xlsx specification `source` for necessary columns to derive a list of md1000 parts.
-    Columns required:
+    Check the inventor .xlsx specification `source` for necessary columns to derive a list of md1000 parts. Columns required:
     - part_number
     - description
     - quantity
+    Copy md1000 parts from the `source` to the template.
     """
 
-    # List of lists of possible names of required columns
-    required_columns = []
+    required_columns_ru = [
+        "Обозначение",
+        "Наименование",
+        "КОЛ.",
+    ]
 
-    for title in TITLES:
-        if title in ["part_number", "description", "quantity"]:
-            required_columns.append(TITLES[title])
-
-    return all_required_columns(source, required_columns)
+    if not all_required_columns(source, required_columns_ru):
+        print("Could not issue a bill of md1000 parts.")
+        print("Source file must contain these columns:")
+        for column in required_columns_ru:
+            print(column)
 
 
 def all_required_columns(source, columns):
     """
     Validate that all `columns` exist in the `source` xlsx file.
     """
+
     # Open the first sheet from the source workbook
     sheet = source[source.sheetnames[0]]
 
     for column in columns:
         exists = False
 
-        # For each possible name for the required column
-        for column_name in column:
-            if column_name in list(sheet.rows)[1]:
-                exists = True
+        if column in list(sheet.rows)[1]:
+            exists = True
 
         # If at least one required column doesn't exist
         if not exists:
             return False
 
     return True
-
-
-def bill_of_materials(source, template):
-    """
-    Calculate materials from the `source` and copy data to the template.
-    Delete unused rows of materials from the template.
-    """
-    raise NotImplementedError
-
-
-def bill_of_purchased(source, template):
-    """
-    Copy purchased parts from the `source` to the template.
-    """
-    raise NotImplementedError
-
-
-def bill_of_md1000(source, template):
-    """
-    Copy md1000 parts from the `source` to the template.
-    """
-    raise NotImplementedError
 
 
 if __name__ == "__main__":
