@@ -2,6 +2,7 @@ import openpyxl
 import sys
 import os
 from pathlib import Path
+import re
 
 
 TITLES = {
@@ -51,6 +52,9 @@ def main():
     # Process bill of md1000 parts
     bill_of_md1000(wb_source, wb_template)
 
+    # Save the result
+    wb_template.save("./" + sys.argv[2])
+
 
 def bill_of_materials(source, template):
     """
@@ -63,17 +67,17 @@ def bill_of_materials(source, template):
     Delete unused rows of materials from the template.
     """
 
-    required_columns_ru = [
+    required_columns = [
         "Структура спецификации",
         "КОЛ.",
         "Материал",
         "Масса",
     ]
 
-    if not all_required_columns(source, required_columns_ru):
+    if not all_required_columns(source, required_columns):
         print("Could not issue a bill of materials.")
         print("Source file must contain at least these columns:")
-        for column in required_columns_ru:
+        for column in required_columns:
             print(column)
 
 
@@ -86,16 +90,16 @@ def bill_of_purchased(source, template):
     Copy purchased parts from the `source` to the template.
     """
 
-    required_columns_ru = [
+    required_columns = [
         "Обозначение",
         "Структура спецификации",
         "КОЛ.",
     ]
 
-    if not all_required_columns(source, required_columns_ru):
+    if not all_required_columns(source, required_columns):
         print("Could not issue a bill of purchased parts.")
         print("Source file must contain at least these columns:")
-        for column in required_columns_ru:
+        for column in required_columns:
             print(column)
 
 
@@ -108,17 +112,47 @@ def bill_of_md1000(source, template):
     Copy md1000 parts from the `source` to the template.
     """
 
-    required_columns_ru = [
+    required_columns = [
         "Обозначение",
         "Наименование",
         "КОЛ.",
     ]
+    additional_columns = []
 
-    if not all_required_columns(source, required_columns_ru):
+    # Check for source having all required columns
+    if not all_required_columns(source, required_columns):
         print("Could not issue a bill of md1000 parts.")
         print("Source file must contain these columns:")
-        for column in required_columns_ru:
+        for column in required_columns:
             print(column)
+            return
+
+    sheet = source.active
+    columns = {
+        title: column_number(sheet, title)
+        for title in (required_columns + additional_columns)
+    }
+    rows = []
+    data = []
+
+    for cell in list(sheet.rows)[0]:
+        if cell.value == "Обозначение":
+            distinguish_column = cell.column - 1
+            break
+
+    for cell in list(sheet.columns)[distinguish_column]:
+        if matches := re.search(r"$МД1000\.", cell.value):
+            rows.append(cell.row)
+
+    for row in rows:
+        data.append(
+            {
+                title: sheet.cell(row=row, column=lambda title: columns[title])
+                for title in columns
+            }
+        )
+
+    sheet_template = template["УнифицированныеИзделия"]
 
 
 def all_required_columns(source, columns):
@@ -127,19 +161,32 @@ def all_required_columns(source, columns):
     """
 
     # Open the first sheet from the source workbook
-    sheet = source[source.sheetnames[0]]
+    sheet = source.active
 
     for column in columns:
         exists = False
 
-        if column in list(sheet.rows)[1]:
-            exists = True
+        # For each cell in the first row (row with titles)
+        for cell in list(sheet.rows)[1]:
+            if column == cell.value:
+                exists = True
 
         # If at least one required column doesn't exist
         if not exists:
             return False
 
     return True
+
+
+def column_number(sheet, title):
+    """
+    Return the number of a column with the `title` from the `sheet`.
+    """
+    for cell in list(sheet.rows)[0]:
+        if cell.value == title:
+            return cell.column
+
+    return None
 
 
 if __name__ == "__main__":
