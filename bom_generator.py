@@ -3,6 +3,7 @@ import os
 import re
 import openpyxl
 import pprint
+import operator
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font
 
@@ -13,7 +14,7 @@ QUANTITY = "КОЛ."
 DESCRIPTION = "Наименование"
 MATERIAL = "Материал"
 MASS = "Масса"
-SROCK_NUMBER = "Инвентарный номер"
+STOCK_NUMBER = "Инвентарный номер"
 PROJECT = "Проект"
 VENDOR = "Поставщик"
 FILE_PATH = "Путь файла"
@@ -68,21 +69,23 @@ def main():
     bill_of_materials(wb_source, wb_template)
 
     # Process bill of purchases parts
-    # bill_of_purchased(wb_source, wb_template)
+    bill_of_purchased(wb_source, wb_template)
 
     # Process bill of md1000 parts
-    # bill_of_md1000(wb_source, wb_template)
+    bill_of_md1000(wb_source, wb_template)
 
     # Save the result
     while True:
-        answer = input("Do you want to save the result? (y/n):")
-        if answer.lower() in ["y", "yes"]:
-            wb_template.save("./" + sys.argv[3])
-            print(f"The result is saved in {sys.argv[3]}.")
-            break
-        else:
-            print(f"The result has not been saved.")
-            break
+        match (input("Save the result? (y/n):")).lower():
+            case "y" | "yes":
+                wb_template.save(sys.argv[3])
+                print(f"The result is saved in {sys.argv[3]}.")
+                break
+            case "n" | "no":
+                print(f"The result has not been saved.")
+                break
+            case _:
+                continue
 
 
 def bill_of_materials(source: object, template: object) -> None:
@@ -105,6 +108,7 @@ def bill_of_materials(source: object, template: object) -> None:
         CUSTOM_LENGTH,
         CUSTOM_WIDTH,
         CUSTOM_AREA,
+        BOM_STRUCTURE,
     ]
     filters = {
         BOM_STRUCTURE: "^Обычный$",
@@ -115,7 +119,7 @@ def bill_of_materials(source: object, template: object) -> None:
 
     # Abort if not all columns on the sheet
     if missing := missing_columns(sheet, columns):
-        print("Could not issue a bill of materials.")
+        print("Could not issue a bill of materials")
         print("Missing columns in the source file:")
         for column in missing:
             print(column)
@@ -127,7 +131,7 @@ def bill_of_materials(source: object, template: object) -> None:
     data = get_data(sheet, columns, filters)
 
     if not data:
-        print("No material parts in the source file.")
+        print("No material parts in the source file")
         return
 
     materials = get_materials_info(data)
@@ -137,7 +141,7 @@ def bill_of_materials(source: object, template: object) -> None:
         sheet_flat_material = template[FLAT_MATERIAL]
     except KeyError:
         print(
-            f"Template must contain '{PROFILE_MATERIAL}' and '{FLAT_MATERIAL}' sheets."
+            f"Template must contain '{PROFILE_MATERIAL}' and '{FLAT_MATERIAL}' sheets"
         )
         return
     else:
@@ -164,17 +168,42 @@ def bill_of_purchased(source: object, template: object) -> None:
     Copy purchased parts from the `source` to the template.
     """
 
-    required_columns = [
-        "Обозначение",
-        "Структура спецификации",
-        "КОЛ.",
+    columns = [
+        PART_NUMBER,
+        DESCRIPTION,
+        PROJECT,
+        VENDOR,
+        QUANTITY,
+        STOCK_NUMBER,
+        BOM_STRUCTURE,
     ]
+    filters = {BOM_STRUCTURE: "^Приобретенный$"}
 
-    if not missing_columns(source, required_columns):
+    sheet = source.active
+
+    if missing := missing_columns(sheet, columns):
         print("Could not issue a bill of purchased parts.")
-        print("Source file must contain at least these columns:")
-        for column in required_columns:
+        print("Missing columns in the source file:")
+        for column in missing:
             print(column)
+
+    print("Collecting data for purchased parts")
+
+    # Collect purchased data from the source
+    data = get_data(sheet, columns, filters)
+
+    if not data:
+        print("No purchased parts in the source file")
+        return
+
+    try:
+        sheet = template[PURCHASED]
+    except KeyError:
+        print(f"Template must contain {PURCHASED} sheet")
+        return
+    else:
+        print(f"Transferring data to the {PURCHASED} sheet...")
+        transfer_purchased(sheet, data)
 
 
 def bill_of_md1000(source: object, template: object) -> None:
@@ -186,46 +215,37 @@ def bill_of_md1000(source: object, template: object) -> None:
     Copy md1000 parts from the `source` to the template.
     """
 
-    required_columns = [PART_NUMBER, DESCRIPTION, QUANTITY]
-    additional_columns = []
+    columns = [PART_NUMBER, DESCRIPTION, QUANTITY]
     filters = {PART_NUMBER: r"^МД1000\."}
 
+    # Active worksheet from the source
     sheet = source.active
 
-    # Check for the sheet having all required columns
-    if missing_required_columns := missing_columns(sheet, required_columns):
-        print("Could not issue a bill of md1000 parts.")
-        print("Missing required columns:")
-        for column in missing_required_columns:
+    # Abort in not all columns on the sheet
+    if missing := missing_columns(sheet, columns):
+        print("Could not issue a bill of md1000 parts")
+        print("Missing columns in the source file:")
+        for column in missing:
             print(column)
         return
 
     print("Collecting data for MD1000 parts")
-    # Check for the sheet having additional columns
-    if missing_additional_columns := missing_columns(sheet, additional_columns):
-        print("but consider issue the source file with additional columns:")
-        for column in missing_additional_columns:
-            print(column)
-        # Update the list of additional columns
-        additional_columns = additional_columns - missing_additional_columns
 
-    # Collect data in list of dict format
-    data = get_data(sheet, required_columns + additional_columns, filters)
+    # Collect MD100 data from the source
+    data = get_data(sheet, columns, filters)
 
     if not data:
-        print("No MD1000 parts in the source file.")
+        print("No MD1000 parts in the source file")
         return
 
-    sheet = template["УнифицированныеИзделия"]
-    start_row = 3
-    start_column = 1
-    for i, part in enumerate(data):
-        row = i + start_row
-        column = start_column
-        sheet.cell(row=row, column=column, value=i + 1)
-        for title in part:
-            column += 1
-            sheet.cell(row=row, column=column).value = row[column]
+    try:
+        sheet = template[MD1000]
+    except KeyError:
+        print(f"Template must contain '{MD1000} sheet")
+        return
+    else:
+        print(f"Transferring data to the {MD1000} sheet...")
+        transfer_md1000(sheet, data)
 
 
 def missing_columns(sheet: object, columns: list[str]) -> list:
@@ -269,7 +289,7 @@ def get_data(sheet: object, columns: list[str], filters: dict) -> list[dict]:
     columns = {column: column_number(sheet[1], column) for column in columns}
 
     # All the rows from the sheet, except the first row with columns titles
-    rows = {(i + 1) for i in range(2, sheet.max_row)}
+    rows = {i for i in range(2, sheet.max_row)}
 
     # First row with columns titles
     for title_cell in sheet[1]:
@@ -297,10 +317,20 @@ def get_data(sheet: object, columns: list[str], filters: dict) -> list[dict]:
             }
         )
 
+    # Replace none-type values with empty string values
+    for row in data:
+        for k, v in row.items():
+            if not v:
+                row[k] = ""
+
     return data
 
 
 def get_materials_info(data: list[dict]) -> dict:
+    """
+    Get info for all materials in the `data`.
+    Info includes mass and scope, and also type of the material.
+    """
     # All unique materials from the data
     materials = {row[MATERIAL]: {} for row in data}
 
@@ -317,9 +347,11 @@ def get_materials_info(data: list[dict]) -> dict:
 
 
 def transfer_materials(sheet: object, materials: dict) -> set:
-    """Complete the `sheet` with `materials`."""
+    """
+    Complete the `sheet` of the template with `materials`.
+    """
 
-    # Font to highlight first cell in changed rows in the template
+    # Font to highlight cells in changed rows
     highlight = Font(color="FF0000")
 
     transferred_materials = set()
@@ -333,23 +365,29 @@ def transfer_materials(sheet: object, materials: dict) -> set:
         if cell.value == None:
             continue
 
+        # Current row
+        i = cell.row
+
         # Type of material of the material in the cell
-        material_type = sheet[f"B{cell.row}"].value
+        material_type = sheet[f"B{i}"].value
         if not material_type:
             material_type = ""
 
-        for material in materials:
+        for material, properties in materials.items():
             # If cell's material among used materials
             if (
                 material.lower().startswith(cell.value.lower())
-                and materials[material]["type"] in material_type
+                and properties["type"] in material_type
             ):
                 # Transfer data
-                sheet[f"D{cell.row}"] = materials[material]["mass"]
-                sheet[f"G{cell.row}"] = materials[material]["scope"]
-                # Highlight the cell
-                cell.font = highlight
-                # Delete considered material
+                sheet[f"D{i}"] = properties["mass"]
+                sheet[f"G{i}"] = properties["scope"]
+
+                # Highlight cells in the row
+                for cell in sheet[i]:
+                    cell.font = highlight
+
+                # Update transferred materials
                 transferred_materials.add(material)
 
     return transferred_materials
@@ -370,7 +408,7 @@ def get_mass(material: str, data: list[dict]) -> float:
                 # Quantity of the part
                 n = int(part[QUANTITY])
             except ValueError:
-                print(f"Invalid quantity for {part[PART_NUMBER]}.")
+                print(f"Invalid quantity for {part[PART_NUMBER]}")
                 continue
             else:
                 # Two options to derive mass
@@ -383,7 +421,7 @@ def get_mass(material: str, data: list[dict]) -> float:
                     summ_mass += float(mass[1].rstrip(" кг")) * n
                 # No options for mass
                 else:
-                    print(f"Couldn't find mass for {part[PART_NUMBER]}.")
+                    print(f"Couldn't find mass for {part[PART_NUMBER]}")
 
     return summ_mass
 
@@ -394,7 +432,7 @@ def get_scope(material: str, data: list[dict]) -> float:
     Scope stands for length of profiled parts and for area of flat parts.
     """
 
-    # Summ of lengths of all parts made of the material
+    # Summ of areas or lengths of all parts made of the material
     scope = 0
 
     for part in data:
@@ -404,7 +442,7 @@ def get_scope(material: str, data: list[dict]) -> float:
                 # Quantity of the part
                 n = int(part[QUANTITY])
             except ValueError:
-                print(f"Invalid quantity for {part[PART_NUMBER]}.")
+                print(f"Invalid quantity for {part[PART_NUMBER]}")
                 continue
             else:
                 # If material is a flat material
@@ -413,13 +451,13 @@ def get_scope(material: str, data: list[dict]) -> float:
                         # Area in the source in mm2, scope in m2
                         scope += int(area) / 1000000
                     else:
-                        print(f"Couldn't find area for {part[PART_NUMBER]}.")
+                        print(f"Couldn't find area for {part[PART_NUMBER]}")
                 else:
                     if length := part[CUSTOM_LENGTH]:
                         # Lwngth in the souce in mm, scope in m
                         scope += int(length) / 1000
                     else:
-                        print(f"Couldn't find length for {part[PART_NUMBER]}.")
+                        print(f"Couldn't find length for {part[PART_NUMBER]}")
 
     return scope
 
@@ -434,6 +472,43 @@ def get_type(material: str) -> str:
                 return k
 
     return ""
+
+
+def transfer_md1000(sheet: object, data: list[dict]) -> None:
+    """
+    Transfer data of MD1000 parts to the `sheet` of the template.
+    """
+
+    for i, row in enumerate(sorted(data, key=lambda d: d[PART_NUMBER])):
+        # Starting row in the template's sheet
+        sheet_row = 3 + i
+
+        sheet[f"A{sheet_row}"] = i + 1
+        sheet[f"B{sheet_row}"] = row[PART_NUMBER]
+        sheet[f"C{sheet_row}"] = row[DESCRIPTION]
+        sheet[f"D{sheet_row}"] = row[QUANTITY]
+
+
+def transfer_purchased(sheet: object, data: list[dict]) -> None:
+    """
+    Transfer data of purchased parts to the `sheet` of the remplate.
+    """
+
+    for i, row in enumerate(sorted(data, key=operator.itemgetter(VENDOR, PART_NUMBER))):
+        # Row in the template's sheet
+        sheet_row = 3 + i
+
+        sheet[f"A{sheet_row}"] = i + 1
+
+        if row[VENDOR]:
+            sheet[f"B{sheet_row}"] = row[DESCRIPTION]
+            sheet[f"C{sheet_row}"] = row[PROJECT]
+            sheet[f"D{sheet_row}"] = row[VENDOR]
+        else:
+            sheet[f"B{sheet_row}"] = row[PART_NUMBER]
+
+        sheet[f"E{sheet_row}"] = row[QUANTITY]
+        sheet[f"F{sheet_row}"] = row[STOCK_NUMBER]
 
 
 if __name__ == "__main__":
