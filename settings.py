@@ -1,3 +1,5 @@
+# Initial properties for inventor_xlsx_bom project to work with.
+
 PART_NUMBER = "Обозначение"
 BOM_STRUCTURE = "Структура спецификации"
 QUANTITY = "КОЛ."
@@ -28,8 +30,11 @@ FLAT_MATERIAL_PREFIX = (
     "Сэндвич-панель",
 )
 
+# Keys must be in the template's B column's rows.
+# Values are substrings of materials names that should be
+# assosiated with those rows in the template.
 MATERIAL_TYPE = {
-    "Ст3сп": ["Ст3", "ст3"],
+    "Ст3сп": ["Ст3"],
     "08Х18Н10": ["08Х18Н10", "нерж"],
     "ЛС59-1": ["ЛС59", "латунь"],
     "Ф-4": ["Ф-4", "фторопласт"],

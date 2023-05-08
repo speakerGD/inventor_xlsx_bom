@@ -1,3 +1,7 @@
+#! python3
+# Transfer data from a raw specification, issued by Autodest Inventor,
+# to a specific bill of material's template.
+
 import sys
 import os
 import re
@@ -13,18 +17,15 @@ from settings import *
 def main():
     # Check that files are provided
     if len(sys.argv) != 4 or not all([arg.endswith(".xlsx") for arg in sys.argv[1:]]):
-        sys.exit(
-            "Usage: bom_generator.py <source>.xlsx <template>.xlsx <result>.xlsx")
+        sys.exit("Usage: project.py <source>.xlsx <template>.xlsx <result>.xlsx")
 
     # Check that provided inventor specification file exists
     if not os.path.exists("./" + sys.argv[1]):
-        sys.exit(
-            f"{sys.argv[1]} must be in the same folder with bom_generator.py")
+        sys.exit(f"{sys.argv[1]} must be in the same folder with project.py")
 
     # Check that provided template file exists
     if not os.path.exists("./" + sys.argv[2]):
-        sys.exit(
-            f"{sys.argv[2]} must be in the same folder with bom_generator.py")
+        sys.exit(f"{sys.argv[2]} must be in the same folder with project.py")
 
     # Load workbooks
     wb_source = openpyxl.load_workbook(sys.argv[1])
@@ -109,12 +110,10 @@ def bill_of_materials(source: object, template: object) -> None:
         return
     else:
         print(f"Transferring data to the {PROFILE_MATERIAL} sheet...")
-        transferred_materials = transfer_materials(
-            sheet_profile_material, materials)
+        transferred_materials = transfer_materials(sheet_profile_material, materials)
 
         print(f"Transferring data to the {FLAT_MATERIAL} sheet...")
-        transferred_materials.update(
-            transfer_materials(sheet_flat_material, materials))
+        transferred_materials.update(transfer_materials(sheet_flat_material, materials))
 
         # Delete transferred materials from dictionary of all materials
         for material in transferred_materials:
@@ -311,53 +310,6 @@ def get_materials_info(data: list[dict]) -> dict:
     return materials
 
 
-def transfer_materials(sheet: object, materials: dict) -> set:
-    """
-    Complete the `sheet` of the template with `materials`.
-    """
-
-    # Font to highlight cells in changed rows
-    highlight = Font(color="FF0000")
-
-    transferred_materials = set()
-
-    # Column with short materials names in the template
-    for cell in sheet["A"]:
-        # Avoid cell with titles of groups of materials
-        if cell.font.b:
-            continue
-        # Avoid empty cells
-        if cell.value == None:
-            continue
-
-        # Current row
-        i = cell.row
-
-        # Type of material of the material in the cell
-        material_type = sheet[f"B{i}"].value
-        if not material_type:
-            material_type = ""
-
-        for material, properties in materials.items():
-            # If cell's material among used materials
-            if (
-                material.lower().startswith(cell.value.lower())
-                and properties["type"] in material_type
-            ):
-                # Transfer data
-                sheet[f"D{i}"] = properties["mass"]
-                sheet[f"G{i}"] = properties["scope"]
-
-                # Highlight cells in the row
-                for cell in sheet[i]:
-                    cell.font = highlight
-
-                # Update transferred materials
-                transferred_materials.add(material)
-
-    return transferred_materials
-
-
 def get_mass(material: str, data: list[dict]) -> float:
     """
     Parse rows of data. Each row is a part.
@@ -414,13 +366,13 @@ def get_scope(material: str, data: list[dict]) -> float:
                 if material.startswith(FLAT_MATERIAL_PREFIX):
                     if area := part[CUSTOM_AREA]:
                         # Area in the source in mm2, scope must be in m2
-                        scope += int(area) / 1000000
+                        scope += (int(area) / 1000000) * n
                     else:
                         print(f"Couldn't find area for {part[PART_NUMBER]}")
                 else:
                     if length := part[CUSTOM_LENGTH]:
                         # Length in the souce in mm, scope must be in m
-                        scope += int(length) / 1000
+                        scope += (int(length) / 1000) * n
                     else:
                         print(f"Couldn't find length for {part[PART_NUMBER]}")
 
@@ -439,20 +391,51 @@ def get_type(material: str) -> str:
     return ""
 
 
-def transfer_md1000(sheet: object, data: list[dict]) -> None:
+def transfer_materials(sheet: object, materials: dict) -> set:
     """
-    Transfer data of MD1000 parts to the `sheet` of the template.
+    Complete the `sheet` of the template with `materials`.
     """
 
-    # Sorted by PART_NUMBER
-    for i, row in enumerate(sorted(data, key=lambda d: d[PART_NUMBER])):
-        # Starting row in the template's sheet
-        sheet_row = 3 + i
+    # Font to highlight cells in changed rows
+    highlight = Font(color="FF0000")
 
-        sheet[f"A{sheet_row}"] = i + 1
-        sheet[f"B{sheet_row}"] = row[PART_NUMBER]
-        sheet[f"C{sheet_row}"] = row[DESCRIPTION]
-        sheet[f"D{sheet_row}"] = row[QUANTITY]
+    transferred_materials = set()
+
+    # Column with short materials names in the template
+    for cell in sheet["A"]:
+        # Avoid cell with titles of groups of materials
+        if cell.font.b:
+            continue
+        # Avoid empty cells
+        if cell.value == None:
+            continue
+
+        # Current row
+        i = cell.row
+
+        # Type of material of the material in the cell
+        material_type = sheet[f"B{i}"].value
+        if not material_type:
+            material_type = ""
+
+        for material, properties in materials.items():
+            # If cell's material among used materials
+            if (
+                material.lower().startswith(cell.value.lower())
+                and properties["type"] in material_type
+            ):
+                # Transfer data
+                sheet[f"D{i}"] = properties["mass"]
+                sheet[f"G{i}"] = properties["scope"]
+
+                # Highlight cells in the row
+                for cell in sheet[i]:
+                    cell.font = highlight
+
+                # Update transferred materials
+                transferred_materials.add(material)
+
+    return transferred_materials
 
 
 def transfer_purchased(sheet: object, data: list[dict]) -> None:
@@ -476,6 +459,22 @@ def transfer_purchased(sheet: object, data: list[dict]) -> None:
 
         sheet[f"E{sheet_row}"] = row[QUANTITY]
         sheet[f"F{sheet_row}"] = row[STOCK_NUMBER]
+
+
+def transfer_md1000(sheet: object, data: list[dict]) -> None:
+    """
+    Transfer data of MD1000 parts to the `sheet` of the template.
+    """
+
+    # Sorted by PART_NUMBER
+    for i, row in enumerate(sorted(data, key=lambda d: d[PART_NUMBER])):
+        # Starting row in the template's sheet
+        sheet_row = 3 + i
+
+        sheet[f"A{sheet_row}"] = i + 1
+        sheet[f"B{sheet_row}"] = row[PART_NUMBER]
+        sheet[f"C{sheet_row}"] = row[DESCRIPTION]
+        sheet[f"D{sheet_row}"] = row[QUANTITY]
 
 
 if __name__ == "__main__":
