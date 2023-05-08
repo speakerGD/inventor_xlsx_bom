@@ -20,16 +20,18 @@ def main():
         sys.exit("Usage: project.py <source>.xlsx <template>.xlsx <result>.xlsx")
 
     # Check that provided inventor specification file exists
-    if not os.path.exists("./" + sys.argv[1]):
-        sys.exit(f"{sys.argv[1]} must be in the same folder with project.py")
+    source_path = os.path.join("data", sys.argv[1])
+    if not os.path.exists(source_path):
+        sys.exit(f"{sys.argv[1]} must be in the data folder")
 
     # Check that provided template file exists
-    if not os.path.exists("./" + sys.argv[2]):
-        sys.exit(f"{sys.argv[2]} must be in the same folder with project.py")
+    template_path = os.path.join("data", sys.argv[2])
+    if not os.path.exists(template_path):
+        sys.exit(f"{sys.argv[2]} must be in the data folder")
 
     # Load workbooks
-    wb_source = openpyxl.load_workbook(sys.argv[1])
-    wb_template = openpyxl.load_workbook(sys.argv[2])
+    wb_source = openpyxl.load_workbook(source_path)
+    wb_template = openpyxl.load_workbook(template_path)
 
     # Process bill of materials
     bill_of_materials(wb_source, wb_template)
@@ -41,11 +43,12 @@ def main():
     bill_of_md1000(wb_source, wb_template)
 
     # Save the result
+    result_path = os.path.join("data", sys.argv[3])
     while True:
         match (input("Save the result? (y/n):")).lower():
             case "y" | "yes":
-                wb_template.save(sys.argv[3])
-                print(f"The result is saved in {sys.argv[3]}.")
+                wb_template.save(result_path)
+                print(f"The result is saved as {sys.argv[3]}.")
                 break
             case "n" | "no":
                 print(f"The result has not been saved.")
