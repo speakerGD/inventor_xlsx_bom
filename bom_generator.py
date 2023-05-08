@@ -4,6 +4,7 @@ import re
 import openpyxl
 import pprint
 import operator
+
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font
 from settings import *
@@ -12,15 +13,18 @@ from settings import *
 def main():
     # Check that files are provided
     if len(sys.argv) != 4 or not all([arg.endswith(".xlsx") for arg in sys.argv[1:]]):
-        sys.exit("Usage: bom_generator.py <source>.xlsx <template>.xlsx <result>.xlsx")
+        sys.exit(
+            "Usage: bom_generator.py <source>.xlsx <template>.xlsx <result>.xlsx")
 
     # Check that provided inventor specification file exists
     if not os.path.exists("./" + sys.argv[1]):
-        sys.exit(f"{sys.argv[1]} must be in the same folder with bom_generator.py")
+        sys.exit(
+            f"{sys.argv[1]} must be in the same folder with bom_generator.py")
 
     # Check that provided template file exists
     if not os.path.exists("./" + sys.argv[2]):
-        sys.exit(f"{sys.argv[2]} must be in the same folder with bom_generator.py")
+        sys.exit(
+            f"{sys.argv[2]} must be in the same folder with bom_generator.py")
 
     # Load workbooks
     wb_source = openpyxl.load_workbook(sys.argv[1])
@@ -51,15 +55,12 @@ def main():
 
 def bill_of_materials(source: object, template: object) -> None:
     """
-    Check the inventor .xlsx specification `source` for necessary columns to calculate BOM. Columns required:
-    - bom_structure
-    - quantity
-    - material
-    - mass
-    Calculate materials from the `source` and copy data to the template.
-    Delete unused rows of materials from the template.
+    Check the inventor .xlsx specification `source` for columns to calculate
+    BOM. Calculate materials from the `source` and transfer data to
+    the `template`. Highlight the rows with calculated materials.
     """
 
+    # These columns must exist in the source
     columns = [
         PART_NUMBER,
         QUANTITY,
@@ -96,6 +97,7 @@ def bill_of_materials(source: object, template: object) -> None:
         return
 
     materials = get_materials_info(data)
+
     # Transfer data to the template
     try:
         sheet_profile_material = template[PROFILE_MATERIAL]
@@ -107,14 +109,18 @@ def bill_of_materials(source: object, template: object) -> None:
         return
     else:
         print(f"Transferring data to the {PROFILE_MATERIAL} sheet...")
-        transferred_materials = transfer_materials(sheet_profile_material, materials)
+        transferred_materials = transfer_materials(
+            sheet_profile_material, materials)
 
         print(f"Transferring data to the {FLAT_MATERIAL} sheet...")
-        transferred_materials.update(transfer_materials(sheet_flat_material, materials))
+        transferred_materials.update(
+            transfer_materials(sheet_flat_material, materials))
 
+        # Delete transferred materials from dictionary of all materials
         for material in transferred_materials:
             del materials[material]
 
+        # Indicate which materials haven't been proceeded
         if materials:
             print("Couldn't transfer these materials:")
             pprint.pprint(materials)
@@ -122,13 +128,11 @@ def bill_of_materials(source: object, template: object) -> None:
 
 def bill_of_purchased(source: object, template: object) -> None:
     """
-    Check the inventor .xlsx specification `source` for necessary columns to derive a list of purchased parts. Columns required:
-    - part_number
-    - bom_structure
-    - quantity
-    Copy purchased parts from the `source` to the template.
+    Check the inventor .xlsx specification `source` for columns to derive info
+    about purchased parts. Transfer data to the `template`.
     """
 
+    # These columns must exist in the source
     columns = [
         PART_NUMBER,
         DESCRIPTION,
@@ -140,6 +144,7 @@ def bill_of_purchased(source: object, template: object) -> None:
     ]
     filters = {BOM_STRUCTURE: "^Приобретенный$"}
 
+    # Active worksheet from the source
     sheet = source.active
 
     if missing := missing_columns(sheet, columns):
@@ -157,6 +162,7 @@ def bill_of_purchased(source: object, template: object) -> None:
         print("No purchased parts in the source file")
         return
 
+    # Transfer data to the template
     try:
         sheet = template[PURCHASED]
     except KeyError:
@@ -169,13 +175,11 @@ def bill_of_purchased(source: object, template: object) -> None:
 
 def bill_of_md1000(source: object, template: object) -> None:
     """
-    Check the inventor .xlsx specification `source` for necessary columns to derive a list of md1000 parts. Columns required:
-    - part_number
-    - description
-    - quantity
-    Copy md1000 parts from the `source` to the template.
+    Check the inventor .xlsx specification `source` for columns to derive
+    info about md1000 parts. Transfer data to the `template`.
     """
 
+    # These columns must exist in the source
     columns = [PART_NUMBER, DESCRIPTION, QUANTITY]
     filters = {PART_NUMBER: r"^МД1000\."}
 
@@ -192,13 +196,14 @@ def bill_of_md1000(source: object, template: object) -> None:
 
     print("Collecting data for MD1000 parts")
 
-    # Collect MD100 data from the source
+    # Collect MD1000 data from the source
     data = get_data(sheet, columns, filters)
 
     if not data:
         print("No MD1000 parts in the source file")
         return
 
+    # Transfer data to the template
     try:
         sheet = template[MD1000]
     except KeyError:
@@ -244,7 +249,6 @@ def get_data(sheet: object, columns: list[str], filters: dict) -> list[dict]:
     """
     Retrieve data from the `sheet` from related `columns`.
     Choose only rows that comply with all `filters`.
-    Numbers of columns and rows start from 1.
     """
     # Target columns and their numbers in the sheet
     columns = {column: column_number(sheet[1], column) for column in columns}
@@ -261,7 +265,7 @@ def get_data(sheet: object, columns: list[str], filters: dict) -> list[dict]:
 
             # Filter cells values in the column
             for data_cell in sheet[get_column_letter(title_cell.column)]:
-                if matches := re.search(filters[title_cell.value], data_cell.value):
+                if re.search(filters[title_cell.value], data_cell.value):
                     # Populate the set of numbers of filtered rows
                     filtered_rows.add(data_cell.row)
 
@@ -290,7 +294,7 @@ def get_data(sheet: object, columns: list[str], filters: dict) -> list[dict]:
 def get_materials_info(data: list[dict]) -> dict:
     """
     Get info for all materials in the `data`.
-    Info includes mass and scope, and also type of the material.
+    Info includes mass, scope, and type of the material.
     """
     # All unique materials from the data
     materials = {row[MATERIAL]: {} for row in data}
@@ -409,13 +413,13 @@ def get_scope(material: str, data: list[dict]) -> float:
                 # If material is a flat material
                 if material.startswith(FLAT_MATERIAL_PREFIX):
                     if area := part[CUSTOM_AREA]:
-                        # Area in the source in mm2, scope in m2
+                        # Area in the source in mm2, scope must be in m2
                         scope += int(area) / 1000000
                     else:
                         print(f"Couldn't find area for {part[PART_NUMBER]}")
                 else:
                     if length := part[CUSTOM_LENGTH]:
-                        # Lwngth in the souce in mm, scope in m
+                        # Length in the souce in mm, scope must be in m
                         scope += int(length) / 1000
                     else:
                         print(f"Couldn't find length for {part[PART_NUMBER]}")
@@ -440,6 +444,7 @@ def transfer_md1000(sheet: object, data: list[dict]) -> None:
     Transfer data of MD1000 parts to the `sheet` of the template.
     """
 
+    # Sorted by PART_NUMBER
     for i, row in enumerate(sorted(data, key=lambda d: d[PART_NUMBER])):
         # Starting row in the template's sheet
         sheet_row = 3 + i
@@ -455,6 +460,7 @@ def transfer_purchased(sheet: object, data: list[dict]) -> None:
     Transfer data of purchased parts to the `sheet` of the remplate.
     """
 
+    # Sorted first by VENDOR, then by PART_NUMBER
     for i, row in enumerate(sorted(data, key=operator.itemgetter(VENDOR, PART_NUMBER))):
         # Row in the template's sheet
         sheet_row = 3 + i
