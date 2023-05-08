@@ -1,5 +1,6 @@
 # Initial properties for inventor_xlsx_bom project to work with.
 
+# TItles of columns in the source file
 PART_NUMBER = "Обозначение"
 BOM_STRUCTURE = "Структура спецификации"
 QUANTITY = "КОЛ."
@@ -15,11 +16,13 @@ CUSTOM_LENGTH = "Length"
 CUSTOM_WIDTH = "Width"
 CUSTOM_AREA = "Area"
 
+# Titles of worksheets in the template
 PROFILE_MATERIAL = "ПрофильныйПрокат"
 FLAT_MATERIAL = "ПлоскийПрокат"
 PURCHASED = "ПокупныеИзделия"
 MD1000 = "УнифицированныеИзделия"
 
+# Way to distinguish profile and flat materials
 FLAT_MATERIAL_PREFIX = (
     "Лист",
     "Пластина",
