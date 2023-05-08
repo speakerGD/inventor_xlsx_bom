@@ -152,7 +152,7 @@ def bill_of_purchased(source: object, template: object) -> None:
         for column in missing:
             print(column)
 
-    print("Collecting data for purchased parts")
+    print("Collecting data for purchased parts...")
 
     # Collect purchased data from the source
     data = get_data(sheet, columns, filters)
@@ -193,7 +193,7 @@ def bill_of_md1000(source: object, template: object) -> None:
             print(column)
         return
 
-    print("Collecting data for MD1000 parts")
+    print("Collecting data for MD1000 parts...")
 
     # Collect MD1000 data from the source
     data = get_data(sheet, columns, filters)
